@@ -24,6 +24,25 @@ COMMODITIES = sorted(df["commodity_desc"].unique())
 DATE_MIN = df["date"].min()
 DATE_MAX = df["date"].max()
 
+# Commodities where all series are equal-standing varieties (no meaningful total)
+# — default to showing all series when selected
+_ALL_SERIES_DEFAULT = {
+    "BEANS", "BROCCOLI", "CARROTS", "CHERRIES", "ONIONS",
+    "PEAS", "PECANS", "POTATOES", "RASPBERRIES", "SWEET CORN",
+}
+
+def default_series(commodity_list):
+    """Return the default selected series for a list of commodities."""
+    defaults = []
+    for commodity in commodity_list:
+        labels = sorted(df[df["commodity_desc"] == commodity]["series_label"].unique())
+        if commodity in _ALL_SERIES_DEFAULT:
+            defaults.extend(labels)
+        else:
+            # Pick the shortest label — the true total series
+            defaults.append(min(labels, key=len))
+    return defaults
+
 MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
@@ -209,7 +228,7 @@ def update_series_options(commodities):
         return [], []
     commodities = commodities if isinstance(commodities, list) else [commodities]
     labels = sorted(df[df["commodity_desc"].isin(commodities)]["series_label"].unique())
-    return [{"label": s, "value": s} for s in labels], []
+    return [{"label": s, "value": s} for s in labels], default_series(commodities)
 
 
 @callback(Output("outlier-btn", "style"), Input("outlier-btn", "n_clicks"))
