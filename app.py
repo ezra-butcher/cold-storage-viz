@@ -48,7 +48,7 @@ MONTHS = [
     "July", "August", "September", "October", "November", "December",
 ]
 MONTH_OPTIONS = [{"label": m, "value": i + 1} for i, m in enumerate(MONTHS)]
-YEAR_OPTIONS = [{"label": str(y), "value": y} for y in range(DATE_MIN.year, DATE_MAX.year + 1)]
+YEAR_OPTIONS = [{"label": str(y), "value": y} for y in range(DATE_MAX.year, DATE_MIN.year - 1, -1)]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -59,10 +59,10 @@ def series_color(label: str, all_labels: list) -> str:
     return _COLOR_SEQUENCE[idx % len(_COLOR_SEQUENCE)]
 
 def capacity_series(series: pd.Series, dates: pd.Series) -> pd.Series:
-    """3-year rolling max by calendar month (same month, up to 3 prior years)."""
+    """3-year rolling max by calendar month using the 3 preceding years (excludes current)."""
     s = series.copy()
     s.index = dates
-    cap = s.groupby(s.index.month).transform(lambda g: g.shift(0).rolling(3, min_periods=1).max())
+    cap = s.groupby(s.index.month).transform(lambda g: g.shift(1).rolling(3, min_periods=1).max())
     cap.index = range(len(cap))
     return cap
 
