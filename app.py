@@ -71,6 +71,10 @@ def apply_unit(series: pd.Series, unit: str, dates: pd.Series = None) -> pd.Seri
         return series.diff()
     if unit == "pct":
         return series.pct_change() * 100
+    if unit == "yoy":
+        return series.diff(12)
+    if unit == "yoy_pct":
+        return series.pct_change(12) * 100
     if unit in ("capacity", "utilization") and dates is not None:
         cap = capacity_series(series, dates)
         if unit == "capacity":
@@ -87,6 +91,10 @@ def y_axis_label(unit: str, base_unit: str = "LB") -> str:
         return f"MoM change ({base_unit})"
     if unit == "pct":
         return "MoM % change"
+    if unit == "yoy":
+        return f"YoY change ({base_unit})"
+    if unit == "yoy_pct":
+        return "YoY % change"
     if unit == "capacity":
         return f"3-yr capacity ({base_unit})"
     if unit == "utilization":
@@ -158,6 +166,8 @@ app.layout = html.Div(
                             {"label": " Actual", "value": "actual"},
                             {"label": " MoM Δ", "value": "delta"},
                             {"label": " MoM %Δ", "value": "pct"},
+                            {"label": " YoY Δ", "value": "yoy"},
+                            {"label": " YoY %Δ", "value": "yoy_pct"},
                             {"label": " Capacity", "value": "capacity"},
                             {"label": " Utilization %", "value": "utilization"},
                         ],
@@ -317,7 +327,7 @@ def update_charts(commodities, series_vals, unit,
     groups = sorted(subset["series_label"].unique()) if not subset.empty else []
     all_labels = sorted(df[df["commodity_desc"].isin(commodities)]["series_label"].unique().tolist())
 
-    show_forecast = bool(forecast_horizon) and forecast_horizon > 0 and not forecasts.empty and unit not in ("capacity", "utilization")
+    show_forecast = bool(forecast_horizon) and forecast_horizon > 0 and not forecasts.empty and unit not in ("capacity", "utilization", "yoy", "yoy_pct")
 
     # ── Line chart ────────────────────────────────────────────────────────────
     line_fig = go.Figure()
@@ -337,8 +347,8 @@ def update_charts(commodities, series_vals, unit,
             hovertemplate="%{x|%b %Y}: %{y:,.0f}<extra>%{fullData.name}</extra>",
         ))
 
-        # Historical fitted values (not shown for capacity/utilization units)
-        if show_fitted and not fitted.empty and unit not in ("capacity", "utilization"):
+        # Historical fitted values (not shown for derived units)
+        if show_fitted and not fitted.empty and unit not in ("capacity", "utilization", "yoy", "yoy_pct"):
             fit_rows = (
                 fitted[(fitted["commodity_desc"].isin(commodities)) & (fitted["series_label"] == grp)
                        & (fitted["date"] >= start_date) & (fitted["date"] <= end_date)]
