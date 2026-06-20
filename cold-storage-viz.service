@@ -1,0 +1,18 @@
+[Unit]
+Description=USDA Cold Storage Dash App
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+ExecStartPre=-/usr/bin/docker stop cold-storage-viz
+ExecStartPre=-/usr/bin/docker rm cold-storage-viz
+ExecStart=/usr/bin/docker run --rm --name cold-storage-viz \
+    --env-file /etc/cold-storage-viz.env \
+    -v /var/lib/cold-storage-viz/data:/app/data:rw \
+    -p 127.0.0.1:8050:8050 \
+    cold-storage-viz:latest
+ExecStop=/usr/bin/docker stop cold-storage-viz
+
+[Install]
+WantedBy=multi-user.target

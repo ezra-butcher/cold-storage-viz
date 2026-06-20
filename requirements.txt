@@ -1,0 +1,8 @@
+dash>=2.17
+plotly>=5.22
+pandas>=2.0
+requests>=2.31
+pmdarima>=2.0
+statsmodels>=0.14
+pyarrow>=14.0
+python-dotenv>=1.0
