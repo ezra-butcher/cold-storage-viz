@@ -58,11 +58,24 @@ def series_color(label: str, all_labels: list) -> str:
     idx = all_labels.index(label) if label in all_labels else 0
     return _COLOR_SEQUENCE[idx % len(_COLOR_SEQUENCE)]
 
-def apply_unit(series: pd.Series, unit: str) -> pd.Series:
+def capacity_series(series: pd.Series, dates: pd.Series) -> pd.Series:
+    """3-year rolling max by calendar month (same month, up to 3 prior years)."""
+    s = series.copy()
+    s.index = dates
+    cap = s.groupby(s.index.month).transform(lambda g: g.shift(0).rolling(3, min_periods=1).max())
+    cap.index = range(len(cap))
+    return cap
+
+def apply_unit(series: pd.Series, unit: str, dates: pd.Series = None) -> pd.Series:
     if unit == "delta":
         return series.diff()
     if unit == "pct":
         return series.pct_change() * 100
+    if unit in ("capacity", "utilization") and dates is not None:
+        cap = capacity_series(series, dates)
+        if unit == "capacity":
+            return cap
+        return (series.reset_index(drop=True) / cap.reset_index(drop=True)) * 100
     return series
 
 def remove_outliers(series: pd.Series) -> pd.Series:
@@ -74,6 +87,10 @@ def y_axis_label(unit: str, base_unit: str = "LB") -> str:
         return f"MoM change ({base_unit})"
     if unit == "pct":
         return "MoM % change"
+    if unit == "capacity":
+        return f"3-yr capacity ({base_unit})"
+    if unit == "utilization":
+        return "Capacity utilization (%)"
     return base_unit
 
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
@@ -141,6 +158,8 @@ app.layout = html.Div(
                             {"label": " Actual", "value": "actual"},
                             {"label": " MoM Δ", "value": "delta"},
                             {"label": " MoM %Δ", "value": "pct"},
+                            {"label": " Capacity", "value": "capacity"},
+                            {"label": " Utilization %", "value": "utilization"},
                         ],
                         value="actual",
                         inline=True,
@@ -293,7 +312,7 @@ def update_charts(commodities, series_vals, unit,
     groups = sorted(subset["series_label"].unique()) if not subset.empty else []
     all_labels = sorted(df[df["commodity_desc"].isin(commodities)]["series_label"].unique().tolist())
 
-    show_forecast = bool(forecast_horizon) and forecast_horizon > 0 and not forecasts.empty
+    show_forecast = bool(forecast_horizon) and forecast_horizon > 0 and not forecasts.empty and unit not in ("capacity", "utilization")
 
     # ── Line chart ────────────────────────────────────────────────────────────
     line_fig = go.Figure()
@@ -302,7 +321,7 @@ def update_charts(commodities, series_vals, unit,
     for grp in groups:
         color = series_color(grp, all_labels)
         grp_df = subset[subset["series_label"] == grp].sort_values("date").drop_duplicates("date")
-        y = apply_unit(grp_df["Value"], unit)
+        y = apply_unit(grp_df["Value"], unit, grp_df["date"])
         if filter_outliers:
             y = remove_outliers(y)
 
@@ -313,15 +332,15 @@ def update_charts(commodities, series_vals, unit,
             hovertemplate="%{x|%b %Y}: %{y:,.0f}<extra>%{fullData.name}</extra>",
         ))
 
-        # Historical fitted values
-        if show_fitted and not fitted.empty:
+        # Historical fitted values (not shown for capacity/utilization units)
+        if show_fitted and not fitted.empty and unit not in ("capacity", "utilization"):
             fit_rows = (
                 fitted[(fitted["commodity_desc"].isin(commodities)) & (fitted["series_label"] == grp)
                        & (fitted["date"] >= start_date) & (fitted["date"] <= end_date)]
                 .sort_values("date")
             )
             if not fit_rows.empty:
-                fit_y = apply_unit(fit_rows["fitted"].reset_index(drop=True), unit)
+                fit_y = apply_unit(fit_rows["fitted"].reset_index(drop=True), unit, fit_rows["date"].reset_index(drop=True))
                 line_fig.add_trace(go.Scatter(
                     x=fit_rows["date"], y=fit_y,
                     mode="lines", name=f"{grp} (fitted)",
@@ -398,7 +417,7 @@ def update_charts(commodities, series_vals, unit,
         plot_bgcolor="#fff", paper_bgcolor="#fff", hovermode="x unified",
         xaxis=dict(showgrid=True, gridcolor="#eee"),
         yaxis=dict(showgrid=True, gridcolor="#eee",
-                   rangemode="tozero" if zero_baseline and unit == "actual" else "normal"),
+                   rangemode="tozero" if zero_baseline and unit in ("actual", "capacity", "utilization") else "normal"),
     )
 
     order_children = (
@@ -411,7 +430,7 @@ def update_charts(commodities, series_vals, unit,
     for grp in groups:
         color = series_color(grp, all_labels)
         grp_df = subset[subset["series_label"] == grp].sort_values("date").drop_duplicates("date")
-        y = apply_unit(grp_df["Value"], unit)
+        y = apply_unit(grp_df["Value"], unit, grp_df["date"])
         if filter_outliers:
             y = remove_outliers(y)
         hist_fig.add_trace(go.Histogram(x=y.dropna(), name=grp, marker_color=color, opacity=0.72, nbinsx=40))
