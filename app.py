@@ -166,6 +166,11 @@ app.layout = html.Div(
                         inputStyle={"marginRight": "3px"},
                         labelStyle={"marginRight": "14px", "fontSize": "13px"},
                     ),
+                    html.Div(
+                        "Capacity = max of the same calendar month over the prior 3 years. "
+                        "Utilization % = current ÷ capacity × 100.",
+                        style={"fontSize": "11px", "color": "#888", "marginTop": "4px"},
+                    ),
                 ]),
                 # Start date
                 html.Div([
