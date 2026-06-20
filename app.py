@@ -176,11 +176,6 @@ app.layout = html.Div(
                         inputStyle={"marginRight": "3px"},
                         labelStyle={"marginRight": "14px", "fontSize": "13px"},
                     ),
-                    html.Div(
-                        "Capacity = max of the same calendar month over the prior 3 years. "
-                        "Utilization % = current ÷ capacity × 100.",
-                        style={"fontSize": "11px", "color": "#888", "marginTop": "4px"},
-                    ),
                 ]),
                 # Start date
                 html.Div([
@@ -435,10 +430,17 @@ def update_charts(commodities, series_vals, unit,
                    rangemode="tozero" if zero_baseline and unit in ("actual", "capacity", "utilization") else "normal"),
     )
 
-    order_children = (
-        [html.Span("Forecast models — ", style={"fontWeight": "600"}), html.Span("  |  ".join(order_lines))]
-        if order_lines else []
-    )
+    order_children = []
+    if order_lines:
+        order_children.append(html.Div([
+            html.Span("Forecast models — ", style={"fontWeight": "600"}),
+            html.Span("  |  ".join(order_lines)),
+        ]))
+    if unit in ("capacity", "utilization"):
+        order_children.append(html.Div(
+            "Capacity = max of the same calendar month over the prior 3 years. "
+            "Utilization % = current ÷ capacity × 100.",
+        ))
 
     # ── Histogram ─────────────────────────────────────────────────────────────
     hist_fig = go.Figure()
