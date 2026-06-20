@@ -116,7 +116,7 @@ app.layout = html.Div(
                     dcc.Dropdown(
                         id="commodity-select",
                         options=[{"label": c.title(), "value": c} for c in COMMODITIES],
-                        value=[COMMODITIES[0]],
+                        value=["BEEF", "PORK"],
                         multi=True,
                         clearable=False,
                         style={"width": "280px", "fontSize": "13px"},
@@ -178,6 +178,11 @@ app.layout = html.Div(
                 html.Div([
                     html.Label("Outliers", style=_label),
                     html.Button("Remove outliers (>3σ)", id="outlier-btn", n_clicks=0, style=_btn_style),
+                ]),
+                # Y-axis
+                html.Div([
+                    html.Label("Y-axis", style=_label),
+                    html.Button("Zero baseline", id="zero-btn", n_clicks=0, style=_btn_style),
                 ]),
                 # Forecast controls
                 html.Div([
@@ -241,6 +246,11 @@ def toggle_fitted_style(n):
     return _btn_active if (n or 0) % 2 == 1 else _btn_style
 
 
+@callback(Output("zero-btn", "style"), Input("zero-btn", "n_clicks"))
+def toggle_zero_style(n):
+    return _btn_active if (n or 0) % 2 == 1 else _btn_style
+
+
 @callback(
     Output("line-chart", "figure"),
     Output("histogram", "figure"),
@@ -255,13 +265,15 @@ def toggle_fitted_style(n):
     Input("outlier-btn", "n_clicks"),
     Input("forecast-slider", "value"),
     Input("fitted-btn", "n_clicks"),
+    Input("zero-btn", "n_clicks"),
 )
 def update_charts(commodities, series_vals, unit,
                   start_month, start_year, end_month, end_year,
-                  outlier_clicks, forecast_horizon, fitted_clicks):
+                  outlier_clicks, forecast_horizon, fitted_clicks, zero_clicks):
 
     filter_outliers = (outlier_clicks or 0) % 2 == 1
     show_fitted = (fitted_clicks or 0) % 2 == 1
+    zero_baseline = (zero_clicks or 0) % 2 == 1
 
     if not commodities:
         commodities = []
@@ -385,7 +397,8 @@ def update_charts(commodities, series_vals, unit,
         margin=dict(l=70, r=20, t=40, b=90),
         plot_bgcolor="#fff", paper_bgcolor="#fff", hovermode="x unified",
         xaxis=dict(showgrid=True, gridcolor="#eee"),
-        yaxis=dict(showgrid=True, gridcolor="#eee"),
+        yaxis=dict(showgrid=True, gridcolor="#eee",
+                   rangemode="tozero" if zero_baseline and unit == "actual" else "normal"),
     )
 
     order_children = (
