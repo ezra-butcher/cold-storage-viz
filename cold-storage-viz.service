@@ -3,6 +3,7 @@ Description=USDA Cold Storage Dash App
 After=network.target
 
 [Service]
+User=user
 Restart=always
 RestartSec=5
 ExecStartPre=-/usr/bin/docker stop cold-storage-viz
