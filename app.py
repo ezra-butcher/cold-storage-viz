@@ -7,7 +7,7 @@ import pathlib
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.colors as pc
-from dash import Dash, dcc, html, Input, Output, State, callback
+from dash import Dash, dcc, html, Input, Output, State, callback, ctx
 
 import fetch_data
 
@@ -213,6 +213,12 @@ app.layout = html.Div(
                     html.Label("Y-axis", style=_label),
                     html.Button("Zero baseline", id="zero-btn", n_clicks=0, style=_btn_style),
                 ]),
+                # Download
+                html.Div([
+                    html.Label("Data", style=_label),
+                    html.Button("Download CSV", id="download-btn", n_clicks=0, style=_btn_style),
+                    dcc.Download(id="download-data"),
+                ]),
                 # Forecast controls
                 html.Div([
                     html.Label("Forecast horizon (months)", style=_label),
@@ -278,6 +284,52 @@ def toggle_fitted_style(n):
 @callback(Output("zero-btn", "style"), Input("zero-btn", "n_clicks"))
 def toggle_zero_style(n):
     return _btn_active if (n or 0) % 2 == 1 else _btn_style
+
+
+@callback(
+    Output("download-data", "data"),
+    Input("download-btn", "n_clicks"),
+    State("commodity-select", "value"),
+    State("series-select", "value"),
+    State("unit-toggle", "value"),
+    State("start-month", "value"),
+    State("start-year", "value"),
+    State("end-month", "value"),
+    State("end-year", "value"),
+    State("outlier-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def download_csv(_, commodities, series_vals, unit,
+                 start_month, start_year, end_month, end_year, outlier_clicks):
+    if not commodities:
+        return None
+    if not isinstance(commodities, list):
+        commodities = [commodities]
+
+    start_date = pd.Timestamp(year=start_year, month=start_month, day=1)
+    end_date = pd.Timestamp(year=end_year, month=end_month, day=1)
+    filter_outliers = (outlier_clicks or 0) % 2 == 1
+
+    mask = (df["commodity_desc"].isin(commodities)) & (df["date"] >= start_date) & (df["date"] <= end_date)
+    if series_vals:
+        mask &= df["series_label"].isin(series_vals)
+    subset = df[mask].sort_values(["series_label", "date"])
+
+    rows = []
+    for grp, grp_df in subset.groupby("series_label", sort=False):
+        grp_df = grp_df.sort_values("date").drop_duplicates("date")
+        y = apply_unit(grp_df["Value"], unit, grp_df["date"])
+        if filter_outliers:
+            y = remove_outliers(y)
+        tmp = grp_df[["date", "commodity_desc", "series_label"]].copy()
+        tmp["value"] = y.values
+        tmp["unit"] = y_axis_label(unit, grp_df["unit_desc"].mode()[0] if "unit_desc" in grp_df.columns else "LB")
+        rows.append(tmp)
+
+    out = pd.concat(rows).reset_index(drop=True)
+    out["date"] = out["date"].dt.strftime("%Y-%m")
+    commodity_slug = "_".join(c.lower() for c in sorted(commodities))
+    return dcc.send_data_frame(out.to_csv, f"cold_storage_{commodity_slug}_{unit}.csv", index=False)
 
 
 @callback(
