@@ -24,6 +24,17 @@ COMMODITIES = sorted(df["commodity_desc"].unique())
 DATE_MIN = df["date"].min()
 DATE_MAX = df["date"].max()
 
+# Display name overrides for raw NASS API commodity names
+_DISPLAY_NAME = {
+    "CHICKENS": "Chicken",
+    "TURKEYS": "Turkey",
+    "DUCKS": "Duck",
+    "LAMB & MUTTON": "Lamb & Mutton",
+}
+
+def display_name(commodity: str) -> str:
+    return _DISPLAY_NAME.get(commodity, commodity.title())
+
 # Commodities where all series are equal-standing varieties (no meaningful total)
 # — default to showing all series when selected
 _ALL_SERIES_DEFAULT = {
@@ -152,7 +163,7 @@ app.layout = html.Div(
                     html.Label("Commodity", style=_label),
                     dcc.Dropdown(
                         id="commodity-select",
-                        options=[{"label": c.title(), "value": c} for c in COMMODITIES],
+                        options=[{"label": display_name(c), "value": c} for c in COMMODITIES],
                         value=["BEEF", "PORK"],
                         multi=True,
                         clearable=False,
@@ -502,7 +513,7 @@ def update_charts(commodities, series_vals, unit,
                     order_lines.append(f"{short}: SARIMA{ao}{so}")
 
     line_fig.update_layout(
-        title=dict(text=f"{', '.join(c.title() for c in commodities)} — Cold Storage Stocks", x=0.01, font_size=14),
+        title=dict(text=f"{', '.join(display_name(c) for c in commodities)} — Cold Storage Stocks", x=0.01, font_size=14),
         xaxis_title="Date", yaxis_title=ylabel,
         legend=dict(orientation="h", y=-0.22, font_size=11),
         margin=dict(l=70, r=20, t=40, b=90),
@@ -536,7 +547,7 @@ def update_charts(commodities, series_vals, unit,
 
     hist_fig.update_layout(
         barmode="overlay",
-        title=dict(text=f"{', '.join(c.title() for c in commodities)} — Distribution of {ylabel}", x=0.01, font_size=14),
+        title=dict(text=f"{', '.join(display_name(c) for c in commodities)} — Distribution of {ylabel}", x=0.01, font_size=14),
         xaxis_title=ylabel, yaxis_title="Count",
         legend=dict(orientation="h", y=-0.28, font_size=11),
         margin=dict(l=70, r=20, t=40, b=90),
