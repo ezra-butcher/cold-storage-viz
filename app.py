@@ -266,6 +266,11 @@ app.layout = html.Div(
             ],
         ),
         html.Div(style=_card, children=[dcc.Graph(id="histogram", style={"height": "300px"})]),
+        html.Div(
+            html.A("View on GitHub", href="https://github.com/ezra-butcher/usda-cold-storage-visualization",
+                   target="_blank", style={"color": "#888", "fontSize": "11px"}),
+            style={"textAlign": "center", "padding": "8px"},
+        ),
     ],
 )
 
