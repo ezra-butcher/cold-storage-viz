@@ -21,7 +21,7 @@ Built with Plotly Dash, designed to be self-hosted and embedded in a Google Site
 
 The dashboard pulls data for:
 - **Dairy**: Butter, Natural Cheese
-- **Frozen Poultry**: Chickens, Turkeys, Ducks
+- **Frozen Poultry**: Chicken, Turkey, Duck
 - **Frozen Red Meat**: Beef, Pork, Veal, Lamb & Mutton
 - **Frozen Eggs**
 - **Frozen Fruit**: Apples, Apricots, Blackberries, Blueberries, Boysenberries, Cherries, Grapes, Peaches, Raspberries, Strawberries, and more
