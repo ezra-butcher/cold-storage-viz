@@ -131,9 +131,21 @@ app.layout = html.Div(
         ),
 
         # ── Controls card ─────────────────────────────────────────────────────
-        html.Div(
-            style={**_card, "display": "flex", "flexWrap": "wrap", "gap": "20px",
-                   "alignItems": "flex-end", "marginBottom": "14px", "padding": "12px 14px"},
+        html.Div(style={**_card, "marginBottom": "14px"}, children=[
+            html.Button(
+                "▼ Filters",
+                id="filters-toggle",
+                n_clicks=0,
+                style={
+                    "width": "100%", "textAlign": "left", "background": "none",
+                    "border": "none", "padding": "10px 14px", "fontSize": "13px",
+                    "fontWeight": "600", "cursor": "pointer", "color": "#444",
+                },
+            ),
+            html.Div(
+            id="filters-panel",
+            style={"display": "flex", "flexWrap": "wrap", "gap": "20px",
+                   "alignItems": "flex-end", "padding": "0 14px 12px"},
             children=[
                 # Commodity
                 html.Div([
@@ -239,7 +251,8 @@ app.layout = html.Div(
                     ),
                 ]),
             ],
-        ),
+            ),  # filters-panel
+        ]),  # controls card
 
         # ── Line chart + order description ────────────────────────────────────
         html.Div(
@@ -269,6 +282,18 @@ def update_series_options(commodities):
     commodities = commodities if isinstance(commodities, list) else [commodities]
     labels = sorted(df[df["commodity_desc"].isin(commodities)]["series_label"].unique())
     return [{"label": s, "value": s} for s in labels], default_series(commodities)
+
+
+@callback(
+    Output("filters-panel", "style"),
+    Output("filters-toggle", "children"),
+    Input("filters-toggle", "n_clicks"),
+)
+def toggle_filters(n):
+    if (n or 0) % 2 == 1:
+        return {"display": "none"}, "▶ Filters"
+    return {"display": "flex", "flexWrap": "wrap", "gap": "20px",
+            "alignItems": "flex-end", "padding": "0 14px 12px"}, "▼ Filters"
 
 
 @callback(Output("outlier-btn", "style"), Input("outlier-btn", "n_clicks"))
