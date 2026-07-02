@@ -4,16 +4,15 @@ An interactive web dashboard for visualizing USDA NASS Cold Storage report data 
 
 Built with Plotly Dash, designed to be self-hosted and embedded in a Google Sites page.
 
-![Dashboard screenshot placeholder](docs/screenshot.png)
-
 ## Features
 
 - **Line charts and histograms** of cold storage stocks by commodity and sub-series
-- **Unit toggle**: Actual levels / Month-over-month change / Month-over-month % change
+- **Unit toggle**: Actual / MoM Δ / MoM % / YoY Δ / YoY % / Capacity / Utilization %
 - **Date range filter** by month and year
 - **Outlier removal** (>3σ from mean)
 - **SARIMA forecasting** with 1–12 month horizon, auto-selected order via `pmdarima`
 - **Historical fitted values** with 95% confidence intervals
+- **CSV download** of currently visible data
 - Full coverage of all series in the USDA NASS Cold Storage monthly report
 
 ## Data Source
@@ -41,8 +40,8 @@ The dashboard pulls data for:
 ### Install
 
 ```bash
-git clone https://github.com/ezra-butcher/cold-storage-viz.git
-cd cold-storage-viz
+git clone https://github.com/ezra-butcher/usda-cold-storage-visualization.git
+cd usda-cold-storage-visualization
 pip install -r requirements.txt
 ```
 
