@@ -469,6 +469,10 @@ def update_charts(commodities, series_vals, unit,
                 .sort_values("date").head(forecast_horizon)
             )
             if not fc_rows.empty:
+                # Last actual point used to bridge the gap to the forecast line
+                last_actual_date = grp_df["date"].iloc[-1]
+                last_actual_y = apply_unit(grp_df["Value"], unit, grp_df["date"]).iloc[-1]
+
                 if unit == "actual":
                     fc_y = fc_rows["forecast"]
                     fc_ci_lower = fc_rows["ci_lower"]
@@ -491,17 +495,23 @@ def update_charts(commodities, series_vals, unit,
                     fc_ci_lower = None
                     fc_ci_upper = None
 
+                fc_x = pd.concat([pd.Series([last_actual_date]), fc_rows["date"].reset_index(drop=True)], ignore_index=True)
+                fc_y = pd.concat([pd.Series([last_actual_y]), pd.Series(fc_y).reset_index(drop=True)], ignore_index=True)
+
                 line_fig.add_trace(go.Scatter(
-                    x=fc_rows["date"], y=fc_y,
+                    x=fc_x, y=fc_y,
                     mode="lines", name=f"{grp} (forecast)",
                     line=dict(color=color, dash="dash"),
                     hovertemplate="%{x|%b %Y}: %{y:,.0f}<extra>forecast</extra>",
                     showlegend=True,
                 ))
                 if fc_ci_lower is not None:
+                    ci_x = [last_actual_date] + list(fc_rows["date"]) + list(fc_rows["date"])[::-1] + [last_actual_date]
+                    ci_upper = [last_actual_y] + list(fc_ci_upper)
+                    ci_lower = list(fc_ci_lower)[::-1] + [last_actual_y]
                     line_fig.add_trace(go.Scatter(
-                        x=list(fc_rows["date"]) + list(fc_rows["date"])[::-1],
-                        y=list(fc_ci_upper) + list(fc_ci_lower)[::-1],
+                        x=ci_x,
+                        y=ci_upper + ci_lower,
                         fill="toself", fillcolor=hex_to_rgba(color, 0.1),
                         mode="lines", line=dict(width=0),
                         hoverinfo="skip", showlegend=False,
