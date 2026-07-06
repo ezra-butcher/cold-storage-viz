@@ -63,11 +63,18 @@ YEAR_OPTIONS = [{"label": str(y), "value": y} for y in range(DATE_MAX.year, DATE
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-_COLOR_SEQUENCE = pc.qualitative.Plotly
+_PALETTES = {
+    "default": pc.qualitative.Plotly,
+    "colorblind": ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#000000"],
+    "monochrome": ["#111111", "#444444", "#777777", "#aaaaaa", "#cccccc", "#000000"],
+}
 
-def series_color(label: str, all_labels: list) -> str:
+_active_palette = "default"
+
+def series_color(label: str, all_labels: list, palette: str = "default") -> str:
+    seq = _PALETTES.get(palette, _PALETTES["default"])
     idx = all_labels.index(label) if label in all_labels else 0
-    return _COLOR_SEQUENCE[idx % len(_COLOR_SEQUENCE)]
+    return seq[idx % len(seq)]
 
 def capacity_series(series: pd.Series, dates: pd.Series) -> pd.Series:
     """3-year rolling max by calendar month using the 3 preceding years (excludes current)."""
@@ -236,6 +243,15 @@ app.layout = html.Div(
                     html.Label("Y-axis", style=_label),
                     html.Button("Zero baseline", id="zero-btn", n_clicks=0, style=_btn_style),
                 ]),
+                # Color palette
+                html.Div([
+                    html.Label("Color palette", style=_label),
+                    html.Div(style={"display": "flex", "gap": "4px"}, children=[
+                        html.Button("Default", id="palette-default-btn", n_clicks=0, style=_btn_active),
+                        html.Button("Colorblind", id="palette-colorblind-btn", n_clicks=0, style=_btn_style),
+                        html.Button("Monochrome", id="palette-mono-btn", n_clicks=0, style=_btn_style),
+                    ]),
+                ]),
                 # Download
                 html.Div([
                     html.Label("Data", style=_label),
@@ -272,16 +288,33 @@ app.layout = html.Div(
                 dcc.Graph(id="line-chart", style={"height": "440px"}),
                 html.Div(id="forecast-orders", style={
                     "fontSize": "11px", "color": "#888",
-                    "padding": "0 16px 10px", "lineHeight": "1.7",
+                    "padding": "0 16px 4px", "lineHeight": "1.7",
                 }),
+                html.Div(style={"borderTop": "1px solid #eee", "margin": "0 16px"}, children=[
+                    html.Button("▶ Chart description", id="line-desc-toggle", n_clicks=0,
+                        style={"background": "none", "border": "none", "padding": "6px 0",
+                               "fontSize": "11px", "color": "#888", "cursor": "pointer"}),
+                    html.Div(id="line-desc-panel", style={"display": "none",
+                        "fontSize": "12px", "color": "#555", "paddingBottom": "10px", "lineHeight": "1.6"}),
+                ]),
             ],
         ),
-        html.Div(style=_card, children=[dcc.Graph(id="histogram", style={"height": "300px"})]),
+        html.Div(style={**_card, "marginBottom": "12px"}, children=[
+            dcc.Graph(id="histogram", style={"height": "300px"}),
+            html.Div(style={"borderTop": "1px solid #eee", "margin": "0 16px"}, children=[
+                html.Button("▶ Chart description", id="hist-desc-toggle", n_clicks=0,
+                    style={"background": "none", "border": "none", "padding": "6px 0",
+                           "fontSize": "11px", "color": "#888", "cursor": "pointer"}),
+                html.Div(id="hist-desc-panel", style={"display": "none",
+                    "fontSize": "12px", "color": "#555", "paddingBottom": "10px", "lineHeight": "1.6"}),
+            ]),
+        ]),
         html.Div(
             html.A("View on GitHub", href="https://github.com/ezra-butcher/usda-cold-storage-visualization",
                    target="_blank", style={"color": "#888", "fontSize": "11px"}),
             style={"textAlign": "center", "padding": "8px"},
         ),
+        dcc.Store(id="palette-store", data="default"),
     ],
 )
 
@@ -325,6 +358,56 @@ def toggle_fitted_style(n):
 @callback(Output("zero-btn", "style"), Input("zero-btn", "n_clicks"))
 def toggle_zero_style(n):
     return _btn_active if (n or 0) % 2 == 1 else _btn_style
+
+
+@callback(
+    Output("palette-store", "data"),
+    Output("palette-default-btn", "style"),
+    Output("palette-colorblind-btn", "style"),
+    Output("palette-mono-btn", "style"),
+    Input("palette-default-btn", "n_clicks"),
+    Input("palette-colorblind-btn", "n_clicks"),
+    Input("palette-mono-btn", "n_clicks"),
+)
+def select_palette(n_default, n_colorblind, n_mono):
+    triggered = ctx.triggered_id
+    if triggered == "palette-colorblind-btn":
+        palette = "colorblind"
+    elif triggered == "palette-mono-btn":
+        palette = "monochrome"
+    else:
+        palette = "default"
+    styles = {
+        "default": _btn_style,
+        "colorblind": _btn_style,
+        "monochrome": _btn_style,
+    }
+    styles[palette] = _btn_active
+    return palette, styles["default"], styles["colorblind"], styles["monochrome"]
+
+
+@callback(
+    Output("line-desc-panel", "style"),
+    Output("line-desc-toggle", "children"),
+    Input("line-desc-toggle", "n_clicks"),
+)
+def toggle_line_desc(n):
+    _panel_style = {"fontSize": "12px", "color": "#555", "paddingBottom": "10px", "lineHeight": "1.6"}
+    if (n or 0) % 2 == 1:
+        return {**_panel_style, "display": "block"}, "▼ Chart description"
+    return {"display": "none"}, "▶ Chart description"
+
+
+@callback(
+    Output("hist-desc-panel", "style"),
+    Output("hist-desc-toggle", "children"),
+    Input("hist-desc-toggle", "n_clicks"),
+)
+def toggle_hist_desc(n):
+    _panel_style = {"fontSize": "12px", "color": "#555", "paddingBottom": "10px", "lineHeight": "1.6"}
+    if (n or 0) % 2 == 1:
+        return {**_panel_style, "display": "block"}, "▼ Chart description"
+    return {"display": "none"}, "▶ Chart description"
 
 
 @callback(
@@ -377,6 +460,8 @@ def download_csv(_, commodities, series_vals, unit,
     Output("line-chart", "figure"),
     Output("histogram", "figure"),
     Output("forecast-orders", "children"),
+    Output("line-desc-panel", "children"),
+    Output("hist-desc-panel", "children"),
     Input("commodity-select", "value"),
     Input("series-select", "value"),
     Input("unit-toggle", "value"),
@@ -388,14 +473,16 @@ def download_csv(_, commodities, series_vals, unit,
     Input("forecast-slider", "value"),
     Input("fitted-btn", "n_clicks"),
     Input("zero-btn", "n_clicks"),
+    Input("palette-store", "data"),
 )
 def update_charts(commodities, series_vals, unit,
                   start_month, start_year, end_month, end_year,
-                  outlier_clicks, forecast_horizon, fitted_clicks, zero_clicks):
+                  outlier_clicks, forecast_horizon, fitted_clicks, zero_clicks, palette):
 
     filter_outliers = (outlier_clicks or 0) % 2 == 1
     show_fitted = (fitted_clicks or 0) % 2 == 1
     zero_baseline = (zero_clicks or 0) % 2 == 1
+    palette = palette or "default"
 
     if not commodities:
         commodities = []
@@ -422,7 +509,7 @@ def update_charts(commodities, series_vals, unit,
     order_lines = []
 
     for grp in groups:
-        color = series_color(grp, all_labels)
+        color = series_color(grp, all_labels, palette)
         grp_df = subset[subset["series_label"] == grp].sort_values("date").drop_duplicates("date")
         y = apply_unit(grp_df["Value"], unit, grp_df["date"])
         if filter_outliers:
@@ -548,7 +635,7 @@ def update_charts(commodities, series_vals, unit,
     # ── Histogram ─────────────────────────────────────────────────────────────
     hist_fig = go.Figure()
     for grp in groups:
-        color = series_color(grp, all_labels)
+        color = series_color(grp, all_labels, palette)
         grp_df = subset[subset["series_label"] == grp].sort_values("date").drop_duplicates("date")
         y = apply_unit(grp_df["Value"], unit, grp_df["date"])
         if filter_outliers:
@@ -566,7 +653,24 @@ def update_charts(commodities, series_vals, unit,
         yaxis=dict(showgrid=True, gridcolor="#eee"),
     )
 
-    return line_fig, hist_fig, order_children
+    # ── Chart descriptions ────────────────────────────────────────────────────
+    commodity_names = ", ".join(display_name(c) for c in commodities)
+    series_names = ", ".join(groups) if groups else "none"
+    unit_label = y_axis_label(unit, base_unit)
+    date_range = f"{MONTHS[start_month - 1]} {start_year} – {MONTHS[end_month - 1]} {end_year}"
+    outlier_note = " Outliers (>3σ) removed." if filter_outliers else ""
+    forecast_note = f" Includes {forecast_horizon}-month SARIMA forecast." if show_forecast and forecast_horizon else ""
+
+    line_desc = (
+        f"This line chart shows {unit_label} for {commodity_names} from {date_range}. "
+        f"Series shown: {series_names}.{outlier_note}{forecast_note}"
+    )
+    hist_desc = (
+        f"This histogram shows the distribution of {unit_label} values for {commodity_names} "
+        f"from {date_range}.{outlier_note}"
+    )
+
+    return line_fig, hist_fig, order_children, line_desc, hist_desc
 
 
 if __name__ == "__main__":
