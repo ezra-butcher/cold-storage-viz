@@ -68,7 +68,7 @@ python fit_forecasts.py    # ~50 min — fits SARIMA models for all 107 series
 python app.py              # starts the Dash app on http://localhost:8050
 ```
 
-> **Note:** `fit_forecasts.py` uses `pmdarima.auto_arima` with a bounded stepwise search (p/q ∈ [0,3], d ∈ [0,1], P/Q ∈ [0,1], D ∈ [0,1], m=12). Runtime is roughly 50 minutes for all 107 series on a modern laptop. Run it once; re-run monthly when new data is released.
+> **Note:** `fit_forecasts.py` uses `pmdarima.auto_arima` with a bounded stepwise search (p,q ∈ {0,1,2,3}, d ∈ {0,1}, P,Q,D ∈ {0,1}, m=12). Runtime is roughly 50 minutes for all 107 series on a modern laptop. Run it once; re-run monthly when new data is released.
 
 ## Deployment (Docker + systemd + Tailscale)
 
