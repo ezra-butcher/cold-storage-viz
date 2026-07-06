@@ -12,9 +12,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.environ["NASS_API_KEY"]
 BASE_URL = "https://quickstats.nass.usda.gov/api/api_GET/"
 CACHE_PATH = pathlib.Path("data/cold_storage.parquet")
+
+
+def _api_key() -> str:
+    """Deferred lookup — only fetching needs the key, not the app reading the cache."""
+    key = os.environ.get("NASS_API_KEY")
+    if not key:
+        raise RuntimeError(
+            "NASS_API_KEY not set — required to fetch data "
+            "(not needed to run the app against an existing data/cold_storage.parquet)"
+        )
+    return key
 
 # Existing commodities: queried by commodity_desc (confirmed working)
 _COMMODITY_DESC_QUERIES = [
@@ -97,14 +107,13 @@ _SHORT_DESC_QUERIES = [
 ]
 
 PARAMS_BASE = {
-    "key": API_KEY,
     "statisticcat_desc": "STOCKS",
     "format": "JSON",
 }
 
 
 def fetch_commodity(commodity: str) -> pd.DataFrame:
-    params = {**PARAMS_BASE, "commodity_desc": commodity}
+    params = {**PARAMS_BASE, "key": _api_key(), "commodity_desc": commodity}
     resp = requests.get(BASE_URL, params=params, timeout=60)
     resp.raise_for_status()
     payload = resp.json()
@@ -114,7 +123,7 @@ def fetch_commodity(commodity: str) -> pd.DataFrame:
 
 
 def fetch_short_desc(short_desc: str) -> pd.DataFrame:
-    params = {**PARAMS_BASE, "short_desc": short_desc}
+    params = {**PARAMS_BASE, "key": _api_key(), "short_desc": short_desc}
     resp = requests.get(BASE_URL, params=params, timeout=60)
     resp.raise_for_status()
     payload = resp.json()
@@ -211,7 +220,10 @@ def main():
     CACHE_PATH.parent.mkdir(exist_ok=True)
     raw = fetch_all()
     cleaned = clean(raw)
-    cleaned.to_parquet(CACHE_PATH, index=False)
+    # Write-then-rename so a restart mid-write never sees a partial file
+    tmp = CACHE_PATH.with_suffix(".tmp")
+    cleaned.to_parquet(tmp, index=False)
+    tmp.replace(CACHE_PATH)
     print(f"\nSaved {len(cleaned):,} rows → {CACHE_PATH}")
     print("Commodities:", sorted(cleaned["commodity_desc"].unique().tolist()))
     print(f"Series count: {cleaned['series_label'].nunique()}")

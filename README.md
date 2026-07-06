@@ -78,17 +78,26 @@ The included `Dockerfile` and `cold-storage-viz.service` are set up for self-hos
 
 ```bash
 docker build -t cold-storage-viz .
+
+# One-time (and after each monthly release): fetch data and fit forecasts into ./data
+docker run --rm --env-file .env -v "$(pwd)/data:/app/data" cold-storage-viz python fetch_data.py
+docker run --rm -v "$(pwd)/data:/app/data" cold-storage-viz python fit_forecasts.py
+
+# Run the app — no API key needed, it only reads ./data
 docker run -d \
   --name cold-storage-viz \
   -p 127.0.0.1:8050:8050 \
   -v "$(pwd)/data:/app/data" \
-  --env-file .env \
   cold-storage-viz
 ```
 
+> **Podman users:** local images are fully qualified — reference the image as
+> `localhost/cold-storage-viz:latest` and pass `--pull=never`.
+
 ### systemd service
 
-Copy the service file and enable it:
+The unit file hardcodes the repo path (`/home/user/usda-cold-storage-visualization`)
+and `User=user` — edit both to match your machine, then:
 
 ```bash
 sudo cp cold-storage-viz.service /etc/systemd/system/

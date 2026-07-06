@@ -4,6 +4,7 @@ Run: python app.py
 """
 
 import pathlib
+import re
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.colors as pc
@@ -23,6 +24,15 @@ fitted = pd.read_parquet(FITTED_PATH) if FITTED_PATH.exists() else pd.DataFrame(
 COMMODITIES = sorted(df["commodity_desc"].unique())
 DATE_MIN = df["date"].min()
 DATE_MAX = df["date"].max()
+
+# Last actual observation per series — forecasts are only drawn when the
+# selected date range reaches the series' end, so they stay adjacent
+SERIES_LAST_DATE = df.groupby("series_label")["date"].max()
+# First fitted date per series — used to clip the differencing burn-in from CI bands
+FITTED_FIRST_DATE = (
+    fitted.groupby("series_label")["date"].min()
+    if not fitted.empty else pd.Series(dtype="datetime64[ns]")
+)
 
 # Display name overrides for raw NASS API commodity names
 _DISPLAY_NAME = {
@@ -69,36 +79,39 @@ _PALETTES = {
     "monochrome": ["#111111", "#444444", "#777777", "#aaaaaa", "#cccccc", "#000000"],
 }
 
-_active_palette = "default"
-
 def series_color(label: str, all_labels: list, palette: str = "default") -> str:
     seq = _PALETTES.get(palette, _PALETTES["default"])
     idx = all_labels.index(label) if label in all_labels else 0
     return seq[idx % len(seq)]
 
-def capacity_series(series: pd.Series, dates: pd.Series) -> pd.Series:
-    """3-year rolling max by calendar month using the 3 preceding years (excludes current)."""
-    s = series.copy()
-    s.index = dates
-    cap = s.groupby(s.index.month).transform(lambda g: g.shift(1).rolling(3, min_periods=1).max())
-    cap.index = range(len(cap))
-    return cap
+def _capacity_monthly(s: pd.Series) -> pd.Series:
+    """Max of the same calendar month over the prior 3 years (expects a complete monthly index)."""
+    return s.groupby(s.index.month).transform(lambda g: g.shift(1).rolling(3, min_periods=1).max())
+
+_DERIVED_UNITS = {"delta", "pct", "yoy", "yoy_pct", "capacity", "utilization"}
 
 def apply_unit(series: pd.Series, unit: str, dates: pd.Series = None) -> pd.Series:
+    if unit not in _DERIVED_UNITS or dates is None:
+        return series
+    # Reindex to a complete monthly calendar so diff/pct/rolling offsets are
+    # calendar-correct across gaps (27 of 107 series have missing months)
+    idx = pd.DatetimeIndex(dates.values)
+    s = pd.Series(series.values, index=idx).asfreq("MS")
     if unit == "delta":
-        return series.diff()
-    if unit == "pct":
-        return series.pct_change() * 100
-    if unit == "yoy":
-        return series.diff(12)
-    if unit == "yoy_pct":
-        return series.pct_change(12) * 100
-    if unit in ("capacity", "utilization") and dates is not None:
-        cap = capacity_series(series, dates)
-        if unit == "capacity":
-            return cap
-        return (series.reset_index(drop=True) / cap.reset_index(drop=True)) * 100
-    return series
+        out = s.diff()
+    elif unit == "pct":
+        out = s.pct_change(fill_method=None) * 100
+    elif unit == "yoy":
+        out = s.diff(12)
+    elif unit == "yoy_pct":
+        out = s.pct_change(12, fill_method=None) * 100
+    elif unit == "capacity":
+        out = _capacity_monthly(s)
+    else:  # utilization
+        out = (s / _capacity_monthly(s)) * 100
+    out = out.reindex(idx)
+    out.index = series.index
+    return out
 
 def remove_outliers(series: pd.Series) -> pd.Series:
     mean, std = series.mean(), series.std()
@@ -138,6 +151,7 @@ _dd_sm = {"width": "100px", "fontSize": "12px"}
 _dd_yr = {"width": "80px", "fontSize": "12px"}
 
 app = Dash(__name__, title="USDA Cold Storage")
+server = app.server  # WSGI entry point for gunicorn
 
 app.layout = html.Div(
     style={"fontFamily": "system-ui, sans-serif", "padding": "12px 16px", "backgroundColor": "#f5f5f5", "minHeight": "100vh"},
@@ -450,9 +464,11 @@ def download_csv(_, commodities, series_vals, unit,
         tmp["unit"] = y_axis_label(unit, grp_df["unit_desc"].mode()[0] if "unit_desc" in grp_df.columns else "LB")
         rows.append(tmp)
 
+    if not rows:
+        return None
     out = pd.concat(rows).reset_index(drop=True)
     out["date"] = out["date"].dt.strftime("%Y-%m")
-    commodity_slug = "_".join(c.lower() for c in sorted(commodities))
+    commodity_slug = "_".join(re.sub(r"[^a-z0-9]+", "_", c.lower()).strip("_") for c in sorted(commodities))
     return dcc.send_data_frame(out.to_csv, f"cold_storage_{commodity_slug}_{unit}.csv", index=False)
 
 
@@ -507,6 +523,8 @@ def update_charts(commodities, series_vals, unit,
     # ── Line chart ────────────────────────────────────────────────────────────
     line_fig = go.Figure()
     order_lines = []
+    forecast_drawn = False
+    hover_fmt = "%{y:,.1f}%" if unit in ("pct", "yoy_pct", "utilization") else "%{y:,.0f}"
 
     for grp in groups:
         color = series_color(grp, all_labels, palette)
@@ -519,7 +537,7 @@ def update_charts(commodities, series_vals, unit,
             x=grp_df["date"], y=y,
             mode="lines", name=grp,
             line=dict(color=color),
-            hovertemplate="%{x|%b %Y}: %{y:,.0f}<extra>%{fullData.name}</extra>",
+            hovertemplate="%{x|%b %Y}: " + hover_fmt + "<extra>%{fullData.name}</extra>",
         ))
 
         # Historical fitted values (not shown for derived units)
@@ -535,33 +553,44 @@ def update_charts(commodities, series_vals, unit,
                     x=fit_rows["date"], y=fit_y,
                     mode="lines", name=f"{grp} (fitted)",
                     line=dict(color=color, dash="dot", width=1),
-                    hovertemplate="%{x|%b %Y}: %{y:,.0f}<extra>fitted</extra>",
+                    hovertemplate="%{x|%b %Y}: " + hover_fmt + "<extra>fitted</extra>",
                     showlegend=True,
                 ))
-                # CI band only meaningful in level (actual) space
+                # CI band only meaningful in level (actual) space; the first 12
+                # fitted months are differencing burn-in with meaninglessly wide CIs
                 if unit == "actual" and "ci_lower" in fit_rows.columns:
-                    line_fig.add_trace(go.Scatter(
-                        x=list(fit_rows["date"]) + list(fit_rows["date"])[::-1],
-                        y=list(fit_rows["ci_upper"]) + list(fit_rows["ci_lower"])[::-1],
-                        fill="toself", fillcolor=hex_to_rgba(color, 0.07),
-                        mode="lines", line=dict(width=0),
-                        hoverinfo="skip", showlegend=False,
-                        name=f"{grp} fitted CI",
-                    ))
+                    burn_start = FITTED_FIRST_DATE.get(grp)
+                    band_rows = (
+                        fit_rows[fit_rows["date"] >= burn_start + pd.DateOffset(months=12)]
+                        if burn_start is not None else fit_rows
+                    )
+                    if not band_rows.empty:
+                        line_fig.add_trace(go.Scatter(
+                            x=list(band_rows["date"]) + list(band_rows["date"])[::-1],
+                            y=list(band_rows["ci_upper"]) + list(band_rows["ci_lower"])[::-1],
+                            fill="toself", fillcolor=hex_to_rgba(color, 0.07),
+                            mode="lines", line=dict(width=0),
+                            hoverinfo="skip", showlegend=False,
+                            name=f"{grp} fitted CI",
+                        ))
 
-        # Forward forecast
-        if show_forecast:
+        # Forward forecast — only when the visible range reaches the series' end,
+        # so the forecast stays adjacent to the last plotted actual
+        if show_forecast and grp_df["date"].iloc[-1] == SERIES_LAST_DATE[grp]:
             fc_rows = (
                 forecasts[(forecasts["commodity_desc"].isin(commodities)) & (forecasts["series_label"] == grp)]
                 .sort_values("date").head(forecast_horizon)
             )
             if not fc_rows.empty:
-                # Last actual point used to bridge the gap to the forecast line
-                last_actual_date = grp_df["date"].iloc[-1]
-                last_actual_y = apply_unit(grp_df["Value"], unit, grp_df["date"]).iloc[-1]
+                # Bridge from the last plotted (outlier-filtered) actual point
+                valid_y = y.dropna()
+                bridge = not valid_y.empty
+                if bridge:
+                    last_actual_y = valid_y.iloc[-1]
+                    last_actual_date = grp_df.loc[valid_y.index[-1], "date"]
 
                 if unit == "actual":
-                    fc_y = fc_rows["forecast"]
+                    fc_y = fc_rows["forecast"].reset_index(drop=True)
                     fc_ci_lower = fc_rows["ci_lower"]
                     fc_ci_upper = fc_rows["ci_upper"]
                 else:
@@ -577,25 +606,37 @@ def update_charts(commodities, series_vals, unit,
                     if unit == "delta":
                         transformed = combined.diff()
                     else:
-                        transformed = combined.pct_change() * 100
+                        transformed = combined.pct_change(fill_method=None) * 100
                     fc_y = transformed.iloc[len(actual_vals):].reset_index(drop=True)
                     fc_ci_lower = None
                     fc_ci_upper = None
 
-                fc_x = pd.concat([pd.Series([last_actual_date]), fc_rows["date"].reset_index(drop=True)], ignore_index=True)
-                fc_y = pd.concat([pd.Series([last_actual_y]), pd.Series(fc_y).reset_index(drop=True)], ignore_index=True)
-
+                # Hover-less connector so the boundary month isn't labeled "forecast"
+                if bridge:
+                    line_fig.add_trace(go.Scatter(
+                        x=[last_actual_date, fc_rows["date"].iloc[0]],
+                        y=[last_actual_y, fc_y.iloc[0]],
+                        mode="lines", line=dict(color=color, dash="dash"),
+                        hoverinfo="skip", showlegend=False,
+                        name=f"{grp} (bridge)",
+                    ))
                 line_fig.add_trace(go.Scatter(
-                    x=fc_x, y=fc_y,
+                    x=fc_rows["date"], y=fc_y,
                     mode="lines", name=f"{grp} (forecast)",
                     line=dict(color=color, dash="dash"),
-                    hovertemplate="%{x|%b %Y}: %{y:,.0f}<extra>forecast</extra>",
+                    hovertemplate="%{x|%b %Y}: " + hover_fmt + "<extra>forecast</extra>",
                     showlegend=True,
                 ))
+                forecast_drawn = True
                 if fc_ci_lower is not None:
-                    ci_x = [last_actual_date] + list(fc_rows["date"]) + list(fc_rows["date"])[::-1] + [last_actual_date]
-                    ci_upper = [last_actual_y] + list(fc_ci_upper)
-                    ci_lower = list(fc_ci_lower)[::-1] + [last_actual_y]
+                    if bridge:
+                        ci_x = [last_actual_date] + list(fc_rows["date"]) + list(fc_rows["date"])[::-1] + [last_actual_date]
+                        ci_upper = [last_actual_y] + list(fc_ci_upper)
+                        ci_lower = list(fc_ci_lower)[::-1] + [last_actual_y]
+                    else:
+                        ci_x = list(fc_rows["date"]) + list(fc_rows["date"])[::-1]
+                        ci_upper = list(fc_ci_upper)
+                        ci_lower = list(fc_ci_lower)[::-1]
                     line_fig.add_trace(go.Scatter(
                         x=ci_x,
                         y=ci_upper + ci_lower,
@@ -659,7 +700,7 @@ def update_charts(commodities, series_vals, unit,
     unit_label = y_axis_label(unit, base_unit)
     date_range = f"{MONTHS[start_month - 1]} {start_year} – {MONTHS[end_month - 1]} {end_year}"
     outlier_note = " Outliers (>3σ) removed." if filter_outliers else ""
-    forecast_note = f" Includes {forecast_horizon}-month SARIMA forecast." if show_forecast and forecast_horizon else ""
+    forecast_note = f" Includes {forecast_horizon}-month SARIMA forecast." if forecast_drawn else ""
 
     line_desc = (
         f"This line chart shows {unit_label} for {commodity_names} from {date_range}. "
