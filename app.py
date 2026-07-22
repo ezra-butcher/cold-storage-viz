@@ -159,7 +159,11 @@ app.layout = html.Div(
         html.H2("USDA Cold Storage Stocks", style={"marginBottom": "2px", "fontSize": "20px"}),
         html.P(
             "Source: USDA NASS Quick Stats — monthly end-of-month cold storage inventory",
-            style={"color": "#777", "fontSize": "12px", "marginTop": 0, "marginBottom": "12px"},
+            style={"color": "#777", "fontSize": "12px", "marginTop": 0, "marginBottom": "2px"},
+        ),
+        html.P(
+            "Independent project — not affiliated with or endorsed by USDA or NASS",
+            style={"color": "#aaa", "fontSize": "11px", "marginTop": 0, "marginBottom": "12px"},
         ),
 
         # ── Controls card ─────────────────────────────────────────────────────

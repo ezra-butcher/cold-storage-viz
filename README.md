@@ -4,6 +4,14 @@ An interactive web dashboard for visualizing USDA NASS Cold Storage report data 
 
 Built with Plotly Dash, designed to be self-hosted and embedded in a Google Sites page.
 
+**Live dashboard:** https://sites.google.com/view/ezrabutcher/tools/usda-cold-storage-stocks-dashboard
+
+> This is an independent project and is not affiliated with, endorsed by, or
+> officially connected to the USDA or NASS. It visualizes their publicly
+> available data.
+
+![Dashboard screenshot](docs/screenshot.png)
+
 ## Features
 
 - **Line charts and histograms** of cold storage stocks by commodity and sub-series
@@ -34,7 +42,7 @@ The dashboard pulls data for:
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.9+ (the pinned `numpy<2` floor has no 3.8 wheel)
 - A free NASS Quick Stats API key from [quickstats.nass.usda.gov/api](https://quickstats.nass.usda.gov/api)
 
 ### Install
