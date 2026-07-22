@@ -37,11 +37,14 @@ The dashboard pulls data for:
 - **Frozen Potatoes**: French Fries, Other
 - **Nuts**: Pecans (shelled and in-shell)
 
+Data credit: U.S. Department of Agriculture, National Agricultural Statistics
+Service, *Cold Storage* data product.
+
 ## Setup
 
 ### Prerequisites
 
-- Python 3.9+ (the pinned `numpy<2` floor has no 3.8 wheel)
+- Python 3.9–3.12 (the pinned `numpy<2` rules out both ends: no 3.8 wheel for numpy 1.26, no numpy 1.x wheel at all for 3.13)
 - A free NASS Quick Stats API key from [quickstats.nass.usda.gov/api](https://quickstats.nass.usda.gov/api)
 
 ### Install
@@ -121,7 +124,9 @@ A cron job runs `refresh_data.sh` monthly after each NASS Cold Storage release (
 0 6 25 * * /path/to/cold-storage-viz/refresh_data.sh
 ```
 
-`refresh_data.sh` re-fetches all data, re-fits forecasts, and restarts the service.
+`refresh_data.sh` re-fetches all data, re-fits forecasts, and restarts the service;
+the final `systemctl restart` step needs passwordless sudo scoped to that one
+command (a one-line file in `/etc/sudoers.d/`) to run unattended.
 
 ### Embedding in Google Sites
 
@@ -141,6 +146,8 @@ cold-storage-viz/
 ├── Dockerfile
 ├── cold-storage-viz.service  # systemd unit file
 ├── requirements.txt
+├── docs/
+│   └── screenshot.png
 └── data/               # Generated — not committed
     ├── cold_storage.parquet
     ├── forecasts.parquet
