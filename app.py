@@ -158,12 +158,9 @@ app.layout = html.Div(
     children=[
         html.H2("USDA Cold Storage Stocks", style={"marginBottom": "2px", "fontSize": "20px"}),
         html.P(
-            "Source: USDA NASS Quick Stats — monthly end-of-month cold storage inventory",
-            style={"color": "#777", "fontSize": "12px", "marginTop": 0, "marginBottom": "2px"},
-        ),
-        html.P(
-            "Independent project — not affiliated with or endorsed by USDA or NASS",
-            style={"color": "#aaa", "fontSize": "11px", "marginTop": 0, "marginBottom": "12px"},
+            "Source: USDA NASS Quick Stats — monthly end-of-month cold storage inventory. "
+            "Independent project, not affiliated with or endorsed by USDA.",
+            style={"color": "#777", "fontSize": "12px", "marginTop": 0, "marginBottom": "12px"},
         ),
 
         # ── Controls card ─────────────────────────────────────────────────────
@@ -328,7 +325,7 @@ app.layout = html.Div(
             ]),
         ]),
         html.Div(
-            html.A("View on GitHub", href="https://github.com/ezra-butcher/usda-cold-storage-visualization",
+            html.A("View on GitHub", href="https://github.com/ezra-butcher/cold-storage-viz",
                    target="_blank", style={"color": "#888", "fontSize": "11px"}),
             style={"textAlign": "center", "padding": "8px"},
         ),

@@ -4,11 +4,10 @@ An interactive web dashboard for visualizing USDA NASS Cold Storage report data 
 
 Built with Plotly Dash, designed to be self-hosted and embedded in a Google Sites page.
 
-**Live dashboard:** https://sites.google.com/view/ezrabutcher/tools/usda-cold-storage-stocks-dashboard
+> This is an independent project built on publicly available data. It is not
+> affiliated with or endorsed by the U.S. Department of Agriculture.
 
-> This is an independent project and is not affiliated with, endorsed by, or
-> officially connected to the USDA or NASS. It visualizes their publicly
-> available data.
+**[Live dashboard →](https://sites.google.com/view/ezrabutcher/tools/usda-cold-storage-stocks-dashboard)**
 
 ![Dashboard screenshot](docs/screenshot.png)
 
@@ -48,8 +47,8 @@ The dashboard pulls data for:
 ### Install
 
 ```bash
-git clone https://github.com/ezra-butcher/usda-cold-storage-visualization.git
-cd usda-cold-storage-visualization
+git clone https://github.com/ezra-butcher/cold-storage-viz.git
+cd cold-storage-viz
 pip install -r requirements.txt
 ```
 
