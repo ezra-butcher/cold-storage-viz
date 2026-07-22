@@ -103,7 +103,7 @@ docker run -d \
 
 ### systemd service
 
-The unit file hardcodes the repo path (`/home/user/usda-cold-storage-visualization`)
+The unit file hardcodes the repo path (`/home/user/cold-storage-viz`)
 and `User=user` — edit both to match your machine, then:
 
 ```bash

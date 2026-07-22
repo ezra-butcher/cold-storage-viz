@@ -11,7 +11,7 @@ ExecStartPre=-/usr/bin/docker rm cold-storage-viz
 # No --env-file: the app only reads data/ — the NASS API key is needed
 # solely by the fetch step (see refresh_data.sh)
 ExecStart=/usr/bin/docker run --rm --pull=never --name cold-storage-viz \
-    -v /home/user/usda-cold-storage-visualization/data:/app/data:rw \
+    -v /home/user/cold-storage-viz/data:/app/data:rw \
     -p 127.0.0.1:8050:8050 \
     localhost/cold-storage-viz:latest
 ExecStop=/usr/bin/docker stop cold-storage-viz
