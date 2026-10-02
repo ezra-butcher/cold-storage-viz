@@ -115,17 +115,23 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now cold-storage-viz
 ```
 
-### Monthly data refresh
+### Data refresh
 
-A cron job runs `refresh_data.sh` monthly after each NASS Cold Storage release (typically the third or fourth week of the month):
+NASS publishes the Cold Storage report around the 23rd–25th of each month, but the
+exact day moves, and Quick Stats is updated some hours after the PDF. Rather than
+guess a date, a cron job polls daily:
 
 ```bash
-# Example crontab entry — 6am on the 25th of each month
-0 6 25 * * /path/to/cold-storage-viz/refresh_data.sh
+# Example crontab entry — 5am every day
+0 5 * * * /path/to/cold-storage-viz/refresh_data.sh
 ```
 
-`refresh_data.sh` re-fetches all data, re-fits forecasts, and restarts the service;
-the final `systemctl restart` step needs passwordless sudo scoped to that one
+Each run re-fetches the data (about 2 minutes). Only when the data has changed
+does it re-fit the forecasts (about 50 minutes) and restart the service, so a late
+release, or a run missed during an outage, is picked up the next morning. A fit
+that fails is retried on the next run. Output is logged to `~/logs/`.
+
+The final `systemctl restart` step needs passwordless sudo scoped to that one
 command (a one-line file in `/etc/sudoers.d/`) to run unattended.
 
 ### Embedding in Google Sites
